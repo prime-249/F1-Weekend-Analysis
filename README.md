@@ -6,6 +6,8 @@ This project aims to analyze Formula 1 (F1) race data from various race weekends
 
 The analysis is done using Python libraries such as Pandas, NumPy, Seaborn, and Matplotlib, and is organized in a reproducible workflow that allows the user to build on past analyses from previous weekends.
 
+UPDATE 2026: All previously generated analysis and utilities have been stored in a new module called "Main.py". This module contains a Session class with all the information and analysis ready at-hand. All old data and functionalities have been maintained within a new folder called "2025".
+
 ---
 
 ## Tools & Libraries
@@ -39,14 +41,13 @@ The analysis is done using Python libraries such as Pandas, NumPy, Seaborn, and 
 
 ## Usage
 
-1. **Download Data**: You can download the race weekend data by using FastF1 API calls, which are integrated into the Jupyter notebooks.
-2. **Run Analysis**: After loading the data, you can apply the standardized functions for each type of analysis you wish to perform (e.g., ideal lap comparisons, race pace comparisons, etc.).
-3. **Apply Functions**: Each new analysis will use functions from `Utilities.py`. If any new analysis is added for a new weekend, that function will also be added to `Utilities.py`.
-4. **Visualize**: Charts will be generated using Seaborn/Matplotlib to visualize key metrics, such as ideal lap comparisons, top speed, race pace, etc.
+1. **Import Session from Main**: Import Session class from Main module. (from Main import Session)
+2. **Initalize Session object**: Initialize a Session object passing year, location, and session name. E.g. my_session = Session('Australia', 'R', 2026)
+3. **Access df or charts**: Either read data on your own calling the attribute df (my_session.df) or use the built-in functions to show charts and analysis.
 
 ---
 
 ## Acknowledgments
 
 - **FastF1 API**: For providing open-source data on F1 sessions.
-- **Seaborn, Matplotlib, Pandas**: For enabling powerful data analysis and visualization.
+- **Seaborn, Matplotlib, Pandas, Numpy**: For enabling powerful data analysis and visualization.
