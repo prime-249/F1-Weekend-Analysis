@@ -4,6 +4,7 @@ import numpy as np
 import fastf1
 import os
 import matplotlib.pyplot as plt
+from matplotlib.ticker import FuncFormatter
 plt.style.use('ggplot')
 import seaborn as sns
 
@@ -132,7 +133,6 @@ class Session:
         Converts all time-based columns in seconds-based columns for better usage.
         Drops the already existing columns.
         """
-
         self.df['LapTime'] = self.df['LapTime'].dt.total_seconds()
         self.df['Sector1Time'] = self.df['Sector1Time'].dt.total_seconds()
         self.df['Sector2Time'] = self.df['Sector2Time'].dt.total_seconds()
@@ -144,11 +144,18 @@ class Session:
         """
         self.df['PitLap'] = ((self.df['PitInTime'].dt.total_seconds()>0) | (self.df['PitOutTime'].dt.total_seconds()>0)).astype(int)
 
+    @staticmethod
+    def _lap_formatter(x, pos):
+        m = int(x // 60)
+        s = int(x % 60)
+        ms = int((x - int(x)) * 1000)
+
+        return f"{m}:{s:02d}.{ms:03d}"
+
     def chart_race_pace(self):
         """
         Generates a box plot chart for each driver's race pace during green-flag laps. Pitting laps are still considered.
         Drivers are ordered by median lap time.
-
         """
         if self.session != 'R':
             raise TypeError('Please load a race session for this functionality.')
@@ -254,3 +261,109 @@ class Session:
 
         self.top_speed_chart = fig
         print('-'*15, 'Top speed comparison chart generated.')
+
+    def _get_ideal_lap(self,driver:str) -> dict:
+        """
+        Private function to compute a driver's ideal lap as the sum of their fastest sectors in the session
+
+        Args:
+            - driver (str): The driver name whose ideal lap will be computed e.g. 'VER' or 'RUS'
+        
+        Returns:
+            dict
+        """
+        df = self.df[self.df['Driver']==driver]
+
+        best_s1 = df['Sector1Time'].min()
+        best_s2 = df['Sector2Time'].min()
+        best_s3 = df['Sector3Time'].min()
+        best_lap = df['LapTime'].min()
+        ideal_lap = best_s1+best_s2+best_s3
+        improvement_margin = round(ideal_lap-best_lap,3)
+        
+        driver_number = df['DriverNumber'].iloc[1]
+        team = df['Team'].iloc[1]
+
+        result = {'Driver':driver,'DriverNumber':driver_number,'Team':team,'BestS1':best_s1,'BestS2':best_s2,'BestS3':best_s3,'BestLap':best_lap,'IdealLap':ideal_lap,'ImprovementMargin':improvement_margin}
+        return result
+
+    def _generate_improv_df(self):
+        """
+        Private function to generate df containing all ideal laps and actual laps from all drivers
+        To be used in pair with _get_ideal_lap
+
+        Returns:
+            pd.DataFrame
+        """
+        i=0
+        improv_df = pd.DataFrame(columns=['Driver','DriverNumber','Team','BestS1','BestS2','BestS3','BestLap','IdealLap','ImprovementMargin'])
+        for driver in self.df['Driver'].unique():
+            ideal = self._get_ideal_lap(driver)
+            improv_df = pd.concat([improv_df,pd.DataFrame(ideal,columns=improv_df.columns,index=[i])])
+            i+=1
+        return improv_df
+
+    def chart_ideal_lap(self,n=9) -> None:
+        """
+        Generates ideal vs actual lap chart for top n drivers to be stored as self.ideal_lap_chart
+
+        Args:
+            - n (int): number of top drivers to be plotted
+
+        Returns:
+            None
+        """
+        if self.session.upper() not in ['Q','SQ']:
+            raise TypeError('Please load a race session for this functionality.')
+        else:
+            print('-'*15,'Generating Delta from Pole chart...')
+            pass
+        improv_df = self._generate_improv_df()
+
+        topN = improv_df.sort_values(by='BestLap',ascending=True).iloc[0:n+1]
+        fig, ax = plt.subplots(figsize=(12,10))
+        sns.scatterplot(topN,x='BestLap',y='Driver',hue='Driver',palette=driver_colors,legend=False,s=100)
+        sns.scatterplot(topN,x='IdealLap',y='Driver',hue='Driver',palette=driver_colors,legend=False,s=100)
+        ax.set_xticks(np.arange(topN['IdealLap'].min(),topN['BestLap'].max(),0.1))
+        ax.xaxis.set_major_formatter(FuncFormatter(self._lap_formatter))
+        ax.tick_params(axis='x', rotation=90)
+        ax.grid(True, axis='both')
+        self.ideal_lap_chart = fig
+
+    def chart_delta_from_pole(self):
+        """
+        Generates chart showing delta from pole for drivers who made it into the last quali session   
+        """
+        if self.session.upper() not in ['Q','SQ']:
+            raise TypeError('Please load a race session for this functionality.')
+        else:
+            print('-'*15,'Generating Delta from Pole chart...')
+            pass
+        #Find fastest lap per driver
+        fastest_laps = []
+        for driver in self.df['Driver'].unique():
+            fastest_lap_dr = self.df.pick_drivers(driver).pick_fastest()
+            fastest_laps.append(fastest_lap_dr)
+        #Get the laps object per each fastest lap
+        fastest_laps = fastf1.core.Laps(fastest_laps)
+        #Get pole lap
+        pole_lap = fastest_laps.pick_fastest()
+        #Generate delta
+        fastest_laps['LapTimeDeltaInSeconds'] = (fastest_laps['LapTime'] - pole_lap['LapTime'])#.dt.total_seconds()
+        #Sort df
+        fastest_laps.sort_values('LapTimeDeltaInSeconds',inplace=True)
+        fastest_laps.reset_index(inplace=True)
+        fastest_laps.drop(columns=['index'],inplace=True)
+        #Plot chart
+        fig, ax = plt.subplots(figsize=(15,8))
+        sns.barplot(orient='horizontal',data=fastest_laps.head(10),x='LapTimeDeltaInSeconds',y='Driver',hue='Driver',palette=driver_colors)
+        ax.set_title(f'Delta from Pole Position - {self.grand_prix} - {self.session}')
+        ax.set_ylabel('Driver')
+        ax.set_ylabel('Delta [s]')
+        ax.set_xticks(np.arange(fastest_laps['LapTimeDeltaInSeconds'].min(),fastest_laps['LapTimeDeltaInSeconds'].max(),0.1))
+        custom_y_ticks_labels = [f'{team} {drv}' for team, drv, in zip(fastest_laps['Team'],fastest_laps['Driver'])]
+        ax.set_yticklabels(custom_y_ticks_labels)
+        ax.grid(axis='both',color='grey')
+        ax.set_xlim(0.0,1.0)
+
+        self.delta_from_pole_chart = fig
