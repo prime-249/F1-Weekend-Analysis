@@ -157,7 +157,7 @@ class Session:
         Generates a box plot chart for each driver's race pace during green-flag laps. Pitting laps are still considered.
         Drivers are ordered by median lap time.
         """
-        if self.session != 'R':
+        if self.session not in ['R','Sprint']:
             raise TypeError('Please load a race session for this functionality.')
         else:
             print('-'*15,'Generating Race Pace chart...')
@@ -194,6 +194,7 @@ class Session:
         ax.legend(loc='upper right')
         ax.set_title('Race Pace per Driver')
         ax.set_ylabel('Lap Time [s]')
+        ax.yaxis.set_major_formatter(FuncFormatter(self._lap_formatter))
         ax.set_xlabel('Driver')
 
         self.race_pace_chart = fig
@@ -238,6 +239,7 @@ class Session:
         ax.set_title(f'Pace Comparison: {drv1} vs {drv2}')
         ax.set_ylabel('Lap Time [s]')
         ax.set_xlabel('Lap')
+        ax.yaxis.set_major_formatter(FuncFormatter(self._lap_formatter))
         ax.grid(color='grey')
 
         self.pace_comparison_chart = fig
@@ -367,3 +369,40 @@ class Session:
         ax.set_xlim(0.0,1.0)
 
         self.delta_from_pole_chart = fig
+    
+    def chart_stint_comparison(self,driver,fuel_coeff=0.06):
+        """
+        Generates chart comparing stint lap times for a driver.
+        The stint lap times are fuel corrected.
+
+        Args:
+            - driver (str): The driver name whose stints will be charted. e.g. 'VER' or 'RUS'
+            - fuel_coeff (float): The amount of fuel correction per lap, default: 0.06
+
+        Returns:
+            - fig object
+        """
+        if self.session not in ['R','Sprint']:
+            raise TypeError('Please load a race session for this functionality.')
+        else:
+            print('-'*15,'Generating Stints comparison chart...')
+            pass
+        
+        if 'PitLap' not in self.df.columns:
+            df = self._one_hot_pit_laps()
+        else:
+            pass
+
+        df = self.df[((self.df['Driver']==driver) & (self.df['LapNumber']!=1))]
+        df = df[df['PitLap']==0]
+        df['FuelCorrectedLapTime'] = df['LapTime']+(df['LapNumber']-1)*fuel_coeff
+        
+        fig, ax = plt.subplots(figsize=(15,8))
+        sns.lineplot(data=df,x='LapNumber',y='FuelCorrectedLapTime',hue='Stint')
+        ax.set_title(driver)
+        ax.set_xticks(np.arange(df['LapNumber'].min(),df['LapNumber'].max()+1,1))
+        ax.yaxis.set_major_formatter(FuncFormatter(self._lap_formatter))
+
+        plt.close()
+
+        return fig
